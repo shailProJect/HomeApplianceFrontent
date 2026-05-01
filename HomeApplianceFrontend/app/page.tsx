@@ -109,7 +109,7 @@ export default function HomePage() {
       {/* Why Us */}
       <section className="bg-muted py-16 px-4">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-foreground text-center mb-12">Why Choose ServeEase?</h2>
+          <h2 className="text-2xl font-bold text-foreground text-center mb-12">Why Choose ApnaAdmi?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {features.map((f) => {
               const Icon = f.icon;
@@ -146,7 +146,7 @@ export default function HomePage() {
       <section className="bg-primary py-16 px-4 text-center">
         <h2 className="text-2xl font-bold text-primary-foreground mb-3">Are you a service professional?</h2>
         <p className="text-primary-foreground/80 mb-6 text-sm leading-relaxed max-w-md mx-auto">
-          Join thousands of providers already earning with ServeEase. Sign up and start accepting bookings today.
+          Join thousands of providers already earning with ApnaAdmi. Sign up and start accepting bookings today.
         </p>
         <Link
           href="/register"
@@ -158,7 +158,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-card border-t border-border py-8 text-center text-sm text-muted-foreground">
-        <p>&copy; 2025 ServeEase. All rights reserved.</p>
+        <p>&copy; 2025 ApnaAdmi. All rights reserved.</p>
       </footer>
     </div>
   );

@@ -7,7 +7,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'ServeEase — Home Services Marketplace',
+  title: 'ApnaAdmi — Home Services Marketplace',
   description: 'Book trusted home services near you. Find electricians, plumbers, and more.',
   generator: 'v0.app',
   icons: {

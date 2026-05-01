@@ -18,7 +18,7 @@ export default function LoginPage() {
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
               <Wrench className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">ServeEase</span>
+            <span className="text-xl font-bold text-foreground">ApnaAdmi</span>
           </Link>
           <p className="text-muted-foreground text-sm mt-2">Sign in to your account</p>
         </div>

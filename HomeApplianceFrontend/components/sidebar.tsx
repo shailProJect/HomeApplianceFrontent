@@ -56,7 +56,7 @@ export default function Sidebar({ role }: SidebarProps) {
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <span className="text-primary-foreground text-xs font-bold">SE</span>
           </div>
-          <span className="font-bold text-foreground">ServeEase</span>
+          <span className="font-bold text-foreground">ApnaAdmi</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1 capitalize">{role} Panel</p>
       </div>
