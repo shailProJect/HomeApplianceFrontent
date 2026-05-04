@@ -1,25 +1,63 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Zap, Droplets, Search, MapPin, ChevronRight, Star, Shield, Clock } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Zap, Droplets, Hammer, Paintbrush, Wind, Wrench,
+  Search, MapPin, ChevronRight, Star, Shield, Clock, BadgeCheck
+} from "lucide-react";
 import Navbar from "@/components/navbar";
-import { providers } from "@/lib/mock-data";
-import ProviderCard from "@/components/provider-card";
+import { userApi, ProviderResponse } from "@/lib/api";
 
 const categories = [
   {
     icon: Zap,
     title: "Electrician",
+    apiKey: "ELECTRICIAN",
     description: "Fan installation, wiring fixes, switch repairs & more.",
     color: "bg-yellow-50 text-yellow-600",
     iconBg: "bg-yellow-100",
-    href: "/search?category=Electrician",
   },
   {
     icon: Droplets,
     title: "Plumber",
+    apiKey: "PLUMBER",
     description: "Tap repairs, pipe leakages, toilet fixes & more.",
     color: "bg-blue-50 text-blue-600",
     iconBg: "bg-blue-100",
-    href: "/search?category=Plumber",
+  },
+  {
+    icon: Hammer,
+    title: "Carpenter",
+    apiKey: "CARPENTER",
+    description: "Furniture assembly, door repairs, custom woodwork & more.",
+    color: "bg-orange-50 text-orange-600",
+    iconBg: "bg-orange-100",
+  },
+  {
+    icon: Paintbrush,
+    title: "Painter",
+    apiKey: "PAINTER",
+    description: "Interior & exterior painting, texture work & more.",
+    color: "bg-pink-50 text-pink-600",
+    iconBg: "bg-pink-100",
+  },
+  {
+    icon: Wind,
+    title: "AC Technician",
+    apiKey: "AC_TECHNICIAN",
+    description: "AC installation, servicing, gas refilling & more.",
+    color: "bg-cyan-50 text-cyan-600",
+    iconBg: "bg-cyan-100",
+  },
+  {
+    icon: Wrench,
+    title: "Appliance Repair",
+    apiKey: "APPLIANCE_REPAIR",
+    description: "Washing machine, fridge, microwave repairs & more.",
+    color: "bg-purple-50 text-purple-600",
+    iconBg: "bg-purple-100",
   },
 ];
 
@@ -30,6 +68,43 @@ const features = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
+  const [searchCategory, setSearchCategory] = useState("");
+  const [topProviders, setTopProviders] = useState<ProviderResponse[]>([]);
+  const [loadingProviders, setLoadingProviders] = useState(true);
+
+  useEffect(() => {
+    // Fetch nearby providers using geolocation or Mumbai fallback
+    const fetch = (lat: number, lng: number) =>
+      userApi
+        .findNearby(lat, lng, 20)
+        .then((res) => {
+          // Sort by rating desc, take top 4
+          const sorted = res.data
+            .filter((p) => p.verified)
+            .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+            .slice(0, 4);
+          setTopProviders(sorted);
+        })
+        .catch(() => setTopProviders([]))
+        .finally(() => setLoadingProviders(false));
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fetch(pos.coords.latitude, pos.coords.longitude),
+        () => fetch(19.076, 72.877)
+      );
+    } else {
+      fetch(19.076, 72.877);
+    }
+  }, []);
+
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    if (searchCategory) params.set("category", searchCategory);
+    router.push(`/search?${params.toString()}`);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -58,18 +133,23 @@ export default function HomePage() {
             <div className="w-px bg-border hidden sm:block" />
             <div className="flex items-center gap-2 flex-1 px-3">
               <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-              <select className="flex-1 bg-transparent outline-none text-sm text-foreground appearance-none cursor-pointer">
+              <select
+                value={searchCategory}
+                onChange={(e) => setSearchCategory(e.target.value)}
+                className="flex-1 bg-transparent outline-none text-sm text-foreground appearance-none cursor-pointer"
+              >
                 <option value="">Select service...</option>
-                <option value="Electrician">Electrician</option>
-                <option value="Plumber">Plumber</option>
+                {categories.map((c) => (
+                  <option key={c.apiKey} value={c.apiKey}>{c.title}</option>
+                ))}
               </select>
             </div>
-            <Link
-              href="/search"
+            <button
+              onClick={handleSearch}
               className="bg-primary text-primary-foreground px-6 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity text-center"
             >
               Search
-            </Link>
+            </button>
           </div>
         </div>
       </section>
@@ -82,25 +162,26 @@ export default function HomePage() {
             View all <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {categories.map((cat) => {
             const Icon = cat.icon;
             return (
-              <div key={cat.title} className={`rounded-2xl border border-border p-6 flex items-start gap-4 ${cat.color} bg-opacity-50`}>
+              <Link
+                key={cat.title}
+                href={`/search?category=${cat.apiKey}`}
+                className={`rounded-2xl border border-border p-6 flex items-start gap-4 hover:shadow-md transition-shadow ${cat.color} bg-opacity-50`}
+              >
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${cat.iconBg} shrink-0`}>
                   <Icon className="w-6 h-6" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-foreground text-lg">{cat.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{cat.description}</p>
-                  <Link
-                    href={cat.href}
-                    className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:underline"
-                  >
+                  <span className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3">
                     Explore <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
+                  </span>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -127,7 +208,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Top Providers */}
+      {/* Top Providers - Live from API */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-bold text-foreground">Top Providers Near You</h2>
@@ -135,11 +216,57 @@ export default function HomePage() {
             View all <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {providers.map((p) => (
-            <ProviderCard key={p.id} provider={p} />
-          ))}
-        </div>
+
+        {loadingProviders ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-40 bg-muted rounded-2xl animate-pulse" />
+            ))}
+          </div>
+        ) : topProviders.length === 0 ? (
+          <div className="text-center py-12 bg-card rounded-2xl border border-border">
+            <p className="text-muted-foreground text-sm">No verified providers found nearby yet.</p>
+            <Link href="/search" className="mt-3 inline-block text-sm text-primary hover:underline">
+              Browse all providers →
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {topProviders.map((p) => (
+              <div key={p.id} className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                    {p.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <p className="font-semibold text-foreground text-sm truncate">{p.name}</p>
+                      {p.verified && <BadgeCheck className="w-3.5 h-3.5 text-primary shrink-0" />}
+                    </div>
+                    {p.serviceArea && (
+                      <p className="text-xs text-muted-foreground truncate">{p.serviceArea}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                  <span className="text-sm font-medium text-foreground">
+                    {p.rating ? p.rating.toFixed(1) : "New"}
+                  </span>
+                  {p.totalReviews !== undefined && (
+                    <span className="text-xs text-muted-foreground">({p.totalReviews} reviews)</span>
+                  )}
+                </div>
+                <Link
+                  href={`/booking?providerId=${p.id}`}
+                  className="w-full bg-primary text-primary-foreground text-xs font-medium py-2 rounded-xl text-center hover:opacity-90 transition-opacity mt-auto"
+                >
+                  Book Now
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* CTA */}

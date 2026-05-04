@@ -43,11 +43,8 @@ export interface StoredUser {
   role: "USER" | "PROVIDER" | "ADMIN";
 }
 
-// ─── Core fetch wrapper ─────────────────────────────────────────────────────
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+// ─── Core fetch wrapper ───────────────────────────────────────────────────────
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -58,29 +55,27 @@ async function request<T>(
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
   if (res.status === 401) {
-    // Try refresh
     const refreshed = await tryRefresh();
     if (refreshed) {
       headers["Authorization"] = `Bearer ${getToken()}`;
       const retried = await fetch(`${BASE_URL}${path}`, { ...options, headers });
       if (!retried.ok) {
-        const err = await retried.json().catch(() => ({}));
+        const err = await retried.json().catch(() => ({})) as { message?: string };
         throw new Error(err?.message || "Request failed after refresh");
       }
       return retried.json();
     } else {
       clearTokens();
-      window.location.href = "/login";
-      throw new Error("Session expired");
+      if (typeof window !== "undefined") window.location.href = "/login";
+      throw new Error("Session expired. Please login again.");
     }
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const err = await res.json().catch(() => ({})) as { message?: string };
     throw new Error(err?.message || `HTTP ${res.status}`);
   }
 
-  // Some endpoints return 204 No Content
   if (res.status === 204) return undefined as T;
   return res.json();
 }
@@ -95,7 +90,7 @@ async function tryRefresh(): Promise<boolean> {
       body: JSON.stringify({ refreshToken }),
     });
     if (!res.ok) return false;
-    const data = await res.json();
+    const data = await res.json() as ApiResponse<AuthResponse>;
     if (data?.data?.accessToken) {
       setTokens(data.data.accessToken, data.data.refreshToken);
       return true;
@@ -106,18 +101,18 @@ async function tryRefresh(): Promise<boolean> {
   }
 }
 
-// ─── Types (matching backend DTOs) ─────────────────────────────────────────
+// ─── Response Types (matching backend DTOs) ───────────────────────────────────
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   userId: string;
   role: "USER" | "PROVIDER" | "ADMIN";
-}
-
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
 }
 
 export interface UserResponse {
@@ -179,121 +174,153 @@ export interface ReviewResponse {
   createdAt: string;
 }
 
-// ─── Auth API ───────────────────────────────────────────────────────────────
+// ─── Request Types ─────────────────────────────────────────────────────────────
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  role: "USER" | "PROVIDER";
+  serviceCategory?: string;
+  yearsOfExperience?: number;
+  serviceArea?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface BookingRequest {
+  providerServiceId: string;
+  scheduledAt: string;
+  address: string;
+  notes?: string;
+}
+
+export interface ReviewRequest {
+  providerId: string;
+  rating: number;
+  comment?: string;
+}
+
+export interface ProviderServiceRequest {
+  categoryName: string;
+  serviceName: string;
+  description?: string;
+  price: number;
+  durationMinutes: number;
+}
+
+export interface AvailabilityRequest {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+}
+
+// ─── Auth API (/auth) ─────────────────────────────────────────────────────────
 export const authApi = {
-  register: (body: {
-    name: string;
-    email: string;
-    password: string;
-    phone: string;
-    role: "USER" | "PROVIDER";
-    serviceCategory?: string;
-    yearsOfExperience?: number;
-    serviceArea?: string;
-    latitude?: number;
-    longitude?: number;
-  }) =>
+  /** POST /auth/register — Register as USER or PROVIDER */
+  register: (body: RegisterRequest) =>
     request<ApiResponse<AuthResponse>>("/auth/register", {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
+  /** POST /auth/login — Login with email + password */
   login: (email: string, password: string) =>
     request<ApiResponse<AuthResponse>>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+
+  /** POST /auth/refresh — Refresh access token */
+  refresh: (refreshToken: string) =>
+    request<ApiResponse<AuthResponse>>("/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
+    }),
 };
 
-// ─── User API ───────────────────────────────────────────────────────────────
+// ─── User API (/user) — Requires USER role ─────────────────────────────────────
 export const userApi = {
+  /** GET /user/providers?category=ELECTRICIAN — Search active provider services by category */
   searchByCategory: (category: string) =>
     request<ApiResponse<ProviderServiceResponse[]>>(
       `/user/providers?category=${encodeURIComponent(category)}`
     ),
 
+  /** GET /user/providers/nearby?lat=&lng=&radius=5 — Find nearby providers (Haversine) */
   findNearby: (lat: number, lng: number, radius = 5) =>
     request<ApiResponse<ProviderResponse[]>>(
       `/user/providers/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
     ),
 
-  createBooking: (body: {
-    providerServiceId: string;
-    scheduledAt: string;
-    address: string;
-    notes?: string;
-  }) =>
+  /** POST /user/bookings — Create a new booking */
+  createBooking: (body: BookingRequest) =>
     request<ApiResponse<BookingResponse>>("/user/bookings", {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
+  /** GET /user/bookings — Get current user's bookings */
   getMyBookings: () =>
     request<ApiResponse<BookingResponse[]>>("/user/bookings"),
 
-  addReview: (body: {
-    providerId: string;
-    rating: number;
-    comment?: string;
-  }) =>
+  /** POST /user/reviews — Submit a review for a provider */
+  addReview: (body: ReviewRequest) =>
     request<ApiResponse<ReviewResponse>>("/user/reviews", {
       method: "POST",
       body: JSON.stringify(body),
     }),
 };
 
-// ─── Provider API ────────────────────────────────────────────────────────────
+// ─── Provider API (/provider) — Requires PROVIDER role ───────────────────────
 export const providerApi = {
-  addService: (body: {
-    categoryName: string;
-    description?: string;
-    price: number;
-    durationMinutes: number;
-  }) =>
+  /** POST /provider/services — Add a new service offering */
+  addService: (body: ProviderServiceRequest) =>
     request<ApiResponse<ProviderServiceResponse>>("/provider/services", {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
+  /** GET /provider/services — Get all services for the authenticated provider */
   getMyServices: () =>
     request<ApiResponse<ProviderServiceResponse[]>>("/provider/services"),
 
-  addAvailability: (body: {
-    dayOfWeek: string;
-    startTime: string;
-    endTime: string;
-  }) =>
+  /** POST /provider/availability — Add an availability slot */
+  addAvailability: (body: AvailabilityRequest) =>
     request<ApiResponse<void>>("/provider/availability", {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
+  /** GET /provider/bookings — Get all bookings for authenticated provider */
   getMyBookings: () =>
     request<ApiResponse<BookingResponse[]>>("/provider/bookings"),
 
-  updateBookingStatus: (
-    id: string,
-    status: "CONFIRMED" | "REJECTED" | "COMPLETED"
-  ) =>
+  /** PUT /provider/bookings/{id}/status — Accept, reject, or complete a booking */
+  updateBookingStatus: (id: string, status: "CONFIRMED" | "REJECTED" | "COMPLETED") =>
     request<ApiResponse<BookingResponse>>(`/provider/bookings/${id}/status`, {
       method: "PUT",
       body: JSON.stringify({ status }),
     }),
 };
 
-// ─── Admin API ───────────────────────────────────────────────────────────────
+// ─── Admin API (/admin) — Requires ADMIN role ─────────────────────────────────
 export const adminApi = {
+  /** GET /admin/providers — List all providers (verified + unverified) */
   getAllProviders: () =>
     request<ApiResponse<ProviderResponse[]>>("/admin/providers"),
 
+  /** PUT /admin/providers/{id}/approve — Verify and approve a provider */
   approveProvider: (id: string) =>
     request<ApiResponse<ProviderResponse>>(`/admin/providers/${id}/approve`, {
       method: "PUT",
     }),
 
+  /** GET /admin/users — List all registered users */
   getAllUsers: () =>
     request<ApiResponse<UserResponse[]>>("/admin/users"),
 
+  /** GET /admin/bookings — Monitor all bookings platform-wide */
   getAllBookings: () =>
     request<ApiResponse<BookingResponse[]>>("/admin/bookings"),
 };

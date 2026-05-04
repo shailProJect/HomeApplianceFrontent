@@ -19,6 +19,7 @@ export default function ProviderServicesPage() {
   const [adding, setAdding] = useState(false);
   const [newService, setNewService] = useState({
     categoryName: "",
+    serviceName: "",
     description: "",
     price: "",
     durationMinutes: "",
@@ -41,12 +42,13 @@ export default function ProviderServicesPage() {
     try {
       const res = await providerApi.addService({
         categoryName: newService.categoryName,
+        serviceName: newService.categoryName,
         description: newService.description || undefined,
         price: parseFloat(newService.price),
         durationMinutes: parseInt(newService.durationMinutes) || 60,
       });
       setServices((prev) => [...prev, res.data]);
-      setNewService({ categoryName: "", description: "", price: "", durationMinutes: "" });
+      setNewService({ categoryName: "", serviceName: "", description: "", price: "", durationMinutes: "" });
       setModalOpen(false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to add service");
