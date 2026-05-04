@@ -2,12 +2,55 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Wrench, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Wrench, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { authApi, getUser } from "@/lib/api";
+import { useAuth } from "./auth-context";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
+
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+ const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  try {
+    const res = await authApi.login(email, password);
+
+    console.log("LOGIN RESPONSE:", res); // 🔥 MUST LOG
+
+    const data = res.data;
+    console.log("EXTRACTED DATA:", data); // 🔥 MUST LOG
+
+    if (!data || !data.accessToken) {
+      throw new Error("Invalid login response");
+    }
+
+    const user = {
+      id: data.userId,
+      name: email.split("@")[0],
+      email,
+      role: data.role,
+    };
+
+    // 🔥 THIS is what saves token
+    login(user, data.accessToken, data.refreshToken);
+
+    if (user.role === "ADMIN") router.push("/admin");
+    else if (user.role === "PROVIDER") router.push("/provider/dashboard");
+    else router.push("/dashboard");
+
+  } catch (err: any) {
+    console.error(err);
+    setError(err.message);
+  }
+};
 
   return (
     <div className="min-h-screen bg-muted flex items-center justify-center p-4">
@@ -26,7 +69,14 @@ export default function LoginPage() {
         <div className="bg-card rounded-2xl border border-border shadow-sm p-8">
           <h1 className="text-2xl font-bold text-foreground mb-6">Welcome back</h1>
 
-          <form className="flex flex-col gap-5" onSubmit={(e) => e.preventDefault()}>
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <form className="flex flex-col gap-5" onSubmit={handleLogin}>
             {/* Email */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-foreground" htmlFor="email">Email</label>
@@ -39,6 +89,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="flex-1 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -55,6 +106,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="flex-1 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -67,19 +119,19 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-                <input type="checkbox" className="rounded" /> Remember me
-              </label>
-              <button type="button" className="text-sm text-primary font-medium hover:underline">Forgot password?</button>
-            </div>
-
-            <Link
-              href="/dashboard"
-              className="w-full bg-primary text-primary-foreground text-sm font-medium py-3 rounded-xl text-center hover:opacity-90 transition-opacity"
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary text-primary-foreground text-sm font-medium py-3 rounded-xl text-center hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Login
-            </Link>
+              {loading && (
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              )}
+              {loading ? "Signing in…" : "Login"}
+            </button>
           </form>
 
           <div className="mt-6 text-center">
@@ -89,22 +141,6 @@ export default function LoginPage() {
                 Register here
               </Link>
             </p>
-          </div>
-
-          {/* Demo Roles */}
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center mb-3">Quick access (demo)</p>
-            <div className="flex gap-2">
-              <Link href="/dashboard" className="flex-1 text-center text-xs border border-border rounded-lg py-2 text-muted-foreground hover:bg-muted transition-colors">
-                User
-              </Link>
-              <Link href="/provider/dashboard" className="flex-1 text-center text-xs border border-border rounded-lg py-2 text-muted-foreground hover:bg-muted transition-colors">
-                Provider
-              </Link>
-              <Link href="/admin" className="flex-1 text-center text-xs border border-border rounded-lg py-2 text-muted-foreground hover:bg-muted transition-colors">
-                Admin
-              </Link>
-            </div>
           </div>
         </div>
       </div>
