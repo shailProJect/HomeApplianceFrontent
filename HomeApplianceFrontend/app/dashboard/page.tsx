@@ -64,7 +64,7 @@ export default function UserDashboard() {
     <div className="flex min-h-screen bg-background">
       <Sidebar role="user" />
 
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 p-4 pt-16 md:p-8 md:pt-8 overflow-y-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground">
             Welcome back, {user?.name?.split(" ")[0] ?? "User"}!
