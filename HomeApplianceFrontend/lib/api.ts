@@ -1,8 +1,8 @@
 // lib/api.ts — Central API client for Home Services Backend
 // Backend runs at http://localhost:8080
 
-// const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
+ const BASE_URL =  "http://localhost:8080";
+// const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
 
 // ─── Token helpers ──────────────────────────────────────────────────────────
 export function getToken(): string | null {
@@ -159,9 +159,11 @@ export interface ProviderServiceResponse {
   providerName: string;
   categoryName: string;
   description?: string;
+  categoryId: string; 
   price: number;
   durationMinutes: number;
   active: boolean;
+  serviceName: string;
 }
 
 export interface ReviewResponse {
@@ -202,18 +204,22 @@ export interface ReviewRequest {
 }
 
 export interface ProviderServiceRequest {
-  categoryName: string;
+  categoryId: string;   // ← must be this, not categoryName
   serviceName: string;
-  description?: string;
   price: number;
   durationMinutes: number;
 }
-
 export interface AvailabilityRequest {
   dayOfWeek: string;
   startTime: string;
   endTime: string;
 }
+export interface ServiceCategoryResponse {
+  id: string;   // UUID — this is what the backend needs as categoryId
+  name: string; // e.g. "ELECTRICIAN"
+}
+ 
+
 
 // ─── Auth API (/auth) ─────────────────────────────────────────────────────────
 export const authApi = {
@@ -237,6 +243,13 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ refreshToken }),
     }),
+    
+};
+
+export const categoryApi = {
+  /** GET /categories — Returns all categories with their UUIDs */
+  getAll: () =>
+    request<ApiResponse<ServiceCategoryResponse[]>>("/categories"),
 };
 
 // ─── User API (/user) — Requires USER role ─────────────────────────────────────
@@ -270,6 +283,23 @@ export const userApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+getChatResponse: (message: string) =>
+  request<{
+    category: string;
+    response: string;
+    providers: {
+      id: string;
+      name: string;
+      serviceArea: string;
+      experience: number;
+    }[];
+  }>("/user/chat/ask", {
+    method: "POST",
+    body: JSON.stringify({
+      message,
+    }),
+  }),
 };
 
 // ─── Provider API (/provider) — Requires PROVIDER role ───────────────────────
@@ -302,6 +332,12 @@ export const providerApi = {
       method: "PUT",
       body: JSON.stringify({ status }),
     }),
+
+    updateService: (id: string, body: ProviderServiceRequest) =>
+    request<ApiResponse<ProviderServiceResponse>>(`/provider/services/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 };
 
 // ─── Admin API (/admin) — Requires ADMIN role ─────────────────────────────────
@@ -323,4 +359,5 @@ export const adminApi = {
   /** GET /admin/bookings — Monitor all bookings platform-wide */
   getAllBookings: () =>
     request<ApiResponse<BookingResponse[]>>("/admin/bookings"),
+
 };

@@ -7,6 +7,7 @@ import Sidebar from "@/components/sidebar";
 import { userApi, providerApi, BookingResponse, ProviderResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../login/auth-context";
+import ChatWidget from "@/components/ChatWidget";
 
 const statusColors: Record<string, string> = {
   PENDING: "bg-yellow-100 text-yellow-700",
@@ -245,6 +246,15 @@ export default function UserDashboard() {
           </div>
         </div>
       </main>
+       {/* ── ✅ ADD THIS ONE LINE ── Chat widget floats over the entire dashboard */}
+      <ChatWidget
+        apiKey={process.env.NEXT_PUBLIC_GROK_API_KEY}
+        systemPrompt={`You are a helpful assistant for ApnaAdmi, a home appliance service booking platform.
+The user "${user?.name ?? "User"}" is currently logged in.
+Help them with booking services, finding providers, tracking bookings, appliance repair questions, and platform navigation.
+Be concise, warm, and professional. Respond in the same language the user writes in.`}
+        welcomeMessage={`Hi ${user?.name?.split(" ")[0] ?? "there"}! 👋 How can I help you today?`}
+      />
     </div>
   );
 }
