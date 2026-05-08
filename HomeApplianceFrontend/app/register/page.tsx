@@ -55,8 +55,8 @@ export default function RegisterPage() {
     serviceCategory: "",
     yearsOfExperience: "",
     serviceArea: "",
-    latitude: "12.9716",
-    longitude: "77.5946",
+    latitude: "19.28290934155699",
+    longitude: "73.05067062377931",
   });
 
   const set =
@@ -79,9 +79,25 @@ export default function RegisterPage() {
       return;
     }
 
-    const getLocation = () => {
-      setLocationLoading(true);
+   const getLocation = () => {
+  setLocationLoading(true);
 
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setForm((prev) => ({
+        ...prev,
+        latitude: position.coords.latitude.toString(),
+        longitude: position.coords.longitude.toString(),
+      }));
+
+      setLocationLoading(false);
+      setError("");
+    },
+
+    (error) => {
+      console.error("Location Error:", error);
+
+      // FALLBACK TRY
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setForm((prev) => ({
@@ -90,48 +106,33 @@ export default function RegisterPage() {
             longitude: position.coords.longitude.toString(),
           }));
 
-          setError("");
           setLocationLoading(false);
+          setError("");
         },
 
-        (error) => {
-          console.error("Location Error:", error);
-
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              setError(
-                "Location permission denied. Please enable location permission in browser settings."
-              );
-              break;
-
-            case error.POSITION_UNAVAILABLE:
-              setError(
-                "Location information is unavailable. Please enable GPS/location."
-              );
-              break;
-
-            case error.TIMEOUT:
-              setError(
-                "Location request timed out. Please try again."
-              );
-              break;
-
-            default:
-              setError(
-                "Unable to fetch location. Please enable location services."
-              );
-          }
-
+        () => {
           setLocationLoading(false);
+
+          setError(
+            "Unable to fetch your location. Please select manually on map."
+          );
         },
 
         {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0,
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 120000,
         }
       );
-    };
+    },
+
+    {
+      enableHighAccuracy: true,
+      timeout: 4000,
+      maximumAge: 0,
+    }
+  );
+};
 
     // Check browser permission state first
     if (navigator.permissions) {
@@ -218,24 +219,29 @@ export default function RegisterPage() {
 
       const res = await authApi.register(body);
 
-      const { accessToken, refreshToken } = res.data;
+      // const { accessToken, refreshToken } = res.data;
 
-      const payload = JSON.parse(atob(accessToken.split(".")[1]));
+      // const payload = JSON.parse(atob(accessToken.split(".")[1]));
 
-      const user = {
-        id: payload.sub,
-        name: form.name,
-        email: form.email,
-        role: payload.role as "USER" | "PROVIDER" | "ADMIN",
-      };
+      // const user = {
+      //   id: payload.sub,
+      //   name: form.name,
+      //   email: form.email,
+      //   role: payload.role as "USER" | "PROVIDER" | "ADMIN",
+      // };
 
-      login(user, accessToken, refreshToken);
+      // login(user, accessToken, refreshToken);
 
-      if (role === "PROVIDER") {
-        router.push("/provider/dashboard");
-      } else {
-        router.push("/dashboard");
-      }
+      // if (role === "PROVIDER") {
+      //   router.push("/provider/dashboard");
+      // } else {
+      //   router.push("/dashboard");
+      // }
+
+      router.push(
+        `/verify-email?email=${encodeURIComponent(form.email)}`
+      );
+
     } catch (err: unknown) {
       console.error(err);
 
@@ -496,16 +502,24 @@ export default function RegisterPage() {
         </p>
 
         <MapPicker
-          latitude={parseFloat(form.latitude)}
-          longitude={parseFloat(form.longitude)}
-          onChange={(lat, lng) => {
-            setForm((prev) => ({
-              ...prev,
-              latitude: lat.toString(),
-              longitude: lng.toString(),
-            }));
-          }}
-        />
+            latitude={
+              form.latitude
+                ? parseFloat(form.latitude)
+                : undefined
+            }
+            longitude={
+              form.longitude
+                ? parseFloat(form.longitude)
+                : undefined
+            }
+            onChange={(lat, lng) => {
+              setForm((prev) => ({
+                ...prev,
+                latitude: lat.toString(),
+                longitude: lng.toString(),
+              }));
+            }}
+      />
       </div>
     </div>
   )}

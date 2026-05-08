@@ -2,7 +2,7 @@
 // Backend runs at http://localhost:8080
 
 //  const BASE_URL =  "http://localhost:8080";
- const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
+  const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
 
 // ─── Token helpers ──────────────────────────────────────────────────────────
 export function getToken(): string | null {
@@ -244,6 +244,23 @@ export const authApi = {
       body: JSON.stringify({ refreshToken }),
     }),
     
+    verifyEmail: (email: string, otp: string) =>
+  request<ApiResponse<string>>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({
+      email,
+      otp,
+    }),
+  }),
+
+  resendOtp: (email: string) =>
+  request<ApiResponse<string>>(
+    "/auth/resend-otp",
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }
+  ),
 };
 
 export const categoryApi = {
