@@ -41,6 +41,10 @@ export interface StoredUser {
   name: string;
   email: string;
   role: "USER" | "PROVIDER" | "ADMIN";
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
+  phone?: string;
+  address?: string;
 }
 
 // ─── Core fetch wrapper ───────────────────────────────────────────────────────
@@ -151,6 +155,8 @@ export interface ProviderResponse {
   verified: boolean;
   rating?: number;
   totalReviews?: number;
+  categoryId: string;
+categoryName: string;
 }
 
 export interface ProviderServiceResponse {
@@ -271,6 +277,31 @@ export const categoryApi = {
 
 // ─── User API (/user) — Requires USER role ─────────────────────────────────────
 export const userApi = {
+  /** GET /user/profile — Get current user profile */
+  getProfile: () =>
+    request<ApiResponse<UserResponse>>("/user/profile"),
+
+  /** PUT /user/profile — Update name and address */
+  updateProfile: (body: { name?: string; address?: string }) =>
+    request<ApiResponse<UserResponse>>("/user/profile", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  /** POST /user/phone/send-otp — Send OTP to phone */
+  sendPhoneOtp: (phone: string) =>
+    request<ApiResponse<string>>("/user/phone/send-otp", {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }),
+
+  /** POST /user/phone/verify — Verify phone OTP */
+  verifyPhone: (phone: string, otp: string) =>
+    request<ApiResponse<UserResponse>>("/user/phone/verify", {
+      method: "POST",
+      body: JSON.stringify({ phone, otp }),
+    }),
+
   /** GET /user/providers?category=ELECTRICIAN — Search active provider services by category */
   searchByCategory: (category: string) =>
     request<ApiResponse<ProviderServiceResponse[]>>(
@@ -321,6 +352,16 @@ getChatResponse: (message: string) =>
 
 // ─── Provider API (/provider) — Requires PROVIDER role ───────────────────────
 export const providerApi = {
+  /** GET /provider/profile — Get provider's own profile */
+  getProfile: () =>
+    request<ApiResponse<ProviderResponse>>("/provider/profile"),
+
+  /** PUT /provider/active?active=true/false — Toggle active status */
+  toggleActive: (active: boolean) =>
+    request<ApiResponse<ProviderResponse>>(`/provider/active?active=${active}`, {
+      method: "PUT",
+    }),
+
   /** POST /provider/services — Add a new service offering */
   addService: (body: ProviderServiceRequest) =>
     request<ApiResponse<ProviderServiceResponse>>("/provider/services", {
@@ -366,6 +407,12 @@ export const adminApi = {
   /** PUT /admin/providers/{id}/approve — Verify and approve a provider */
   approveProvider: (id: string) =>
     request<ApiResponse<ProviderResponse>>(`/admin/providers/${id}/approve`, {
+      method: "PUT",
+    }),
+
+  /** PUT /admin/providers/{id}/toggle-active — Enable/disable a provider */
+  toggleProviderActive: (id: string, active: boolean) =>
+    request<ApiResponse<ProviderResponse>>(`/admin/providers/${id}/toggle-active?active=${active}`, {
       method: "PUT",
     }),
 

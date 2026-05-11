@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/sidebar";
-import { providerApi, categoryApi, ProviderServiceResponse, ServiceCategoryResponse } from "@/lib/api";
+import { providerApi, ProviderServiceResponse, ServiceCategoryResponse } from "@/lib/api";
 import { Plus, X, Pencil, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ interface ServiceForm {
 }
 
 const EMPTY_FORM: ServiceForm = {
-  categoryId: "",
+  categoryId: "temp",
   serviceName: "",
   price: "",
   durationMinutes: "",
@@ -62,18 +62,14 @@ function ServiceModal({
                 <Loader2 className="w-4 h-4 animate-spin" /> Loading categories…
               </div>
             ) : (
-              <select
-                value={form.categoryId}
-                onChange={(e) => onChange({ ...form, categoryId: e.target.value })}
-                className="border border-input rounded-xl px-3 py-2.5 bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Select category</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name.replace(/_/g, " ")}
-                  </option>
-                ))}
-              </select>
+             <input
+              type="text"
+              value={
+                categories[0]?.name?.replace(/_/g, " ") || ""
+              }
+              disabled
+              className="border border-input rounded-xl px-3 py-2.5 bg-muted text-sm text-foreground"
+            />
             )}
           </div>
 
@@ -125,7 +121,7 @@ function ServiceModal({
             </button>
             <button
               onClick={onSubmit}
-              disabled={submitting || !form.categoryId || !form.serviceName.trim() || !form.price}
+              disabled={submitting || !form.serviceName.trim() || !form.price}
               className="flex-1 bg-primary text-primary-foreground text-sm font-medium py-2.5 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {submitting ? (
@@ -158,14 +154,39 @@ export default function ProviderServicesPage() {
   const [editForm, setEditForm] = useState<ServiceForm>(EMPTY_FORM);
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState("");
+const [providerCategory, setProviderCategory] =
+  useState<ServiceCategoryResponse | null>(null);
 
-  useEffect(() => {
-    categoryApi.getAll()
-      .then((res) => setCategories(res.data))
-      .catch(() => setPageError("Failed to load categories"))
-      .finally(() => setLoadingCategories(false));
-    fetchServices();
-  }, []);
+ useEffect(() => {
+  const fetchProviderCategory = async () => {
+    try {
+      setLoadingCategories(true);
+
+      const profileRes = await providerApi.getProfile();
+
+      const category = {
+        id: profileRes.data.categoryId,
+        name: profileRes.data.categoryName,
+      };
+
+      setProviderCategory(category);
+
+      setCategories([category]);
+
+      setAddForm((prev) => ({
+        ...prev,
+        categoryId: category.id,
+      }));
+    } catch (e) {
+      setPageError("Failed to load provider category");
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  fetchProviderCategory();
+  fetchServices();
+}, []);
 
   const fetchServices = () => {
     setLoading(true);
@@ -238,7 +259,17 @@ export default function ProviderServicesPage() {
             <p className="text-muted-foreground mt-1">Manage the services you offer.</p>
           </div>
           <button
-            onClick={() => { setAddForm(EMPTY_FORM); setAddError(""); setAddOpen(true); }}
+            onClick={() => {
+              setAddForm({
+                categoryId: providerCategory?.id || "",
+                serviceName: "",
+                price: "",
+                durationMinutes: "",
+              });
+
+              setAddError("");
+              setAddOpen(true);
+          }}
             className="flex items-center gap-2 bg-primary text-primary-foreground text-sm font-medium px-4 py-2.5 rounded-xl hover:opacity-90 transition-opacity"
           >
             <Plus className="w-4 h-4" /> Add Service
