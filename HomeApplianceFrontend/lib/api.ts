@@ -1,8 +1,8 @@
 // lib/api.ts — Central API client for Home Services Backend
 // Backend runs at http://localhost:8080
 
-  const BASE_URL =  "http://localhost:8080";
-  // const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
+  // const BASE_URL =  "http://localhost:8080";
+   const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
 
 // ─── Token helpers ──────────────────────────────────────────────────────────
 export function getToken(): string | null {
