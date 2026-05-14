@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   Menu,
   X,
+  FileText,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +38,9 @@ const providerLinks = [
   { href: "/provider/services", label: "My Services", icon: Briefcase },
   { href: "/provider/availability", label: "Availability", icon: Clock },
   { href: "/provider/bookings", label: "Bookings", icon: BookOpen },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/provider/profile", label: "Shop Profile", icon: User },
+  { href: "/provider/documents", label: "My Documents", icon: FileText },
+  { href: "/profile", label: "Account", icon: Settings },
 ];
 
 const adminLinks = [
@@ -44,6 +48,7 @@ const adminLinks = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/providers", label: "Providers", icon: ShieldCheck },
   { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
+  { href: "/admin/reviews", label: "Feedback & Reviews", icon: MessageSquare },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

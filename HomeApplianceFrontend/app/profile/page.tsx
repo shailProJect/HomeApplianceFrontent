@@ -1,581 +1,244 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "@/components/sidebar";
-import {
-  Camera,
-  Lock,
-  CheckCircle,
-  BadgeCheck,
-  Upload,
-  FileText,
-} from "lucide-react";
-import imageCompression from "browser-image-compression";
+import { userApi, UserResponse } from "@/lib/api";
+import PhoneVerificationModal from "@/components/auth/phone-verification-modal";
+import { Camera, Loader2, Save, CheckCircle2, AlertCircle, BadgeCheck, Phone, User, MapPin } from "lucide-react";
 import { useAuth } from "../login/auth-context";
 
+const MAX_PHOTO_KB = 500;
+
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const role = authUser?.role?.toLowerCase() as "user" | "provider" | "admin" | undefined;
 
-  const [passwordModalOpen, setPasswordModalOpen] =
-    useState(false);
+  const [profile, setProfile] = useState<UserResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
 
-  const [saved, setSaved] = useState(false);
+  const [form, setForm] = useState({ name: "", address: "" });
 
-  const [profilePhoto, setProfilePhoto] =
-    useState<File | null>(null);
+  useEffect(() => {
+    userApi.getProfile()
+      .then((res) => {
+        const p = res.data;
+        setProfile(p);
+        setForm({ name: p.name ?? "", address: p.address ?? "" });
+        if (p.profilePhoto) setPhotoPreview(p.profilePhoto);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load profile"))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const [documents, setDocuments] = useState({
-    aadhaar: null as File | null,
-    marksheet: null as File | null,
-    experienceCertificate: null as File | null,
-  });
-
-  const [form, setForm] = useState({
-    name: user?.name ?? "",
-    email: user?.email ?? "",
-    phone: "",
-    address: "",
-
-    // Provider
-    shopName: "",
-    shopAddress: "",
-    workExperience: "",
-    verified: false,
-  });
-
-  const set =
-    (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((f) => ({
-        ...f,
-        [k]: e.target.value,
-      }));
-
-  // Profile photo compression
-  const handleProfilePhotoChange = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-
     if (!file) return;
+    setPhotoError("");
 
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setPhotoError("Only JPEG, PNG, or WebP images are allowed.");
+      return;
+    }
+    if (file.size > MAX_PHOTO_KB * 1024) {
+      setPhotoError(`Photo is ${(file.size / 1024).toFixed(1)} KB — max allowed is ${MAX_PHOTO_KB} KB.`);
+      return;
+    }
+
+    // Show local preview immediately
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
+    // Upload via backend (secure — goes through JWT-authenticated endpoint)
     try {
-      const compressedFile =
-        await imageCompression(file, {
-          maxSizeMB: 0.3,
-          maxWidthOrHeight: 800,
-          useWebWorker: true,
-        });
-
-      setProfilePhoto(compressedFile);
-    } catch (error) {
-      alert("Failed to process image");
+      setUploadingPhoto(true);
+      const res = await userApi.uploadProfilePhoto(file);
+      setProfile(res.data);
+      setSuccess("Profile photo updated!");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Upload failed. Please try again.");
+      setPhotoPreview(profile?.profilePhoto ?? null);
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
-  // Document compression
-  const handleFileChange =
-    (key: keyof typeof documents) =>
-    async (
-      e: React.ChangeEvent<HTMLInputElement>
-    ) => {
-
-      const file = e.target.files?.[0];
-
-      if (!file) return;
-
-      try {
-
-        let finalFile: File = file;
-
-        // Compress image files only
-        if (file.type.startsWith("image/")) {
-
-          finalFile =
-            await imageCompression(file, {
-              maxSizeMB: 0.5,
-              maxWidthOrHeight: 1200,
-              useWebWorker: true,
-            });
-        }
-
-        setDocuments((prev) => ({
-          ...prev,
-          [key]: finalFile,
-        }));
-
-      } catch (error) {
-        alert("Failed to process file");
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      // Build multipart form (backend expects multipart for profile updates)
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const formData = new FormData();
+      const blob = new Blob([JSON.stringify({ name: form.name, address: form.address })], { type: "application/json" });
+      formData.append("data", blob);
+      const res = await fetch("http://localhost:8080/user/profile", {
+        method: "PUT",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(err?.message ?? "Update failed");
       }
-    };
-
-  const handleSave = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
-
-    setSaved(true);
-
-    setTimeout(() => {
-      setSaved(false);
-    }, 3000);
+      const data = await res.json() as { data: UserResponse };
+      setProfile(data.data);
+      setSuccess("Profile saved successfully!");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "?";
+  if (loading) return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar role={role ?? "user"} />
+      <main className="flex-1 flex items-center justify-center">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" /> Loading profile…
+        </div>
+      </main>
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar
-        role={
-          user?.role === "PROVIDER"
-            ? "provider"
-            : user?.role === "ADMIN"
-            ? "admin"
-            : "user"
-        }
-      />
-
+      <Sidebar role={role ?? "user"} />
       <main className="flex-1 p-8 overflow-y-auto">
-        <div className="mb-8">
+        <div className="max-w-2xl mx-auto">
 
-          <h1 className="text-2xl font-bold text-foreground">
-            Profile Settings
-          </h1>
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-foreground">My Account</h1>
+            <p className="text-muted-foreground mt-1">Manage your personal details and profile photo.</p>
+          </div>
 
-          <p className="text-muted-foreground mt-1">
-            Manage your profile and business
-            information.
-          </p>
-        </div>
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+            </div>
+          )}
+          {success && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-5">
+              <CheckCircle2 className="w-4 h-4 shrink-0" /> {success}
+            </div>
+          )}
 
-        <div className="max-w-3xl flex flex-col gap-6">
-
-          {/* Profile Photo */}
-          <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
-
-            <h2 className="font-semibold text-foreground mb-5">
-              Profile Photo
+          {/* Profile Photo Card */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm p-6 mb-6">
+            <h2 className="text-sm font-semibold text-foreground mb-5 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-primary" /> Profile Photo
             </h2>
-
-            <div className="flex items-center gap-5">
-
-              <div className="relative">
-
-                {profilePhoto ? (
-                  <img
-                    src={URL.createObjectURL(
-                      profilePhoto
-                    )}
-                    alt="Profile"
-                    className="w-20 h-20 rounded-full object-cover border"
-                  />
+            <div className="flex items-center gap-6">
+              <div className="relative shrink-0">
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Profile" className="w-24 h-24 rounded-2xl object-cover border-2 border-border shadow" />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl">
-                    {initials}
+                  <div className="w-24 h-24 rounded-2xl bg-muted border-2 border-border flex items-center justify-center">
+                    <User className="w-10 h-10 text-muted-foreground" />
                   </div>
                 )}
-
-                <label className="absolute bottom-0 right-0 w-7 h-7 bg-card border-2 border-background rounded-full flex items-center justify-center hover:bg-muted transition-colors shadow-sm cursor-pointer">
-
-                  <Camera className="w-3.5 h-3.5 text-foreground" />
-
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={
-                      handleProfilePhotoChange
-                    }
-                  />
-                </label>
+                {uploadingPhoto && (
+                  <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                )}
               </div>
-
-              <div>
-
-                <p className="font-medium text-foreground">
-                  {user?.name}
-                </p>
-
-                <p className="text-sm text-muted-foreground">
-                  {user?.email}
-                </p>
-
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-
-                  <span className="inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                    {user?.role}
-                  </span>
-
-                  {user?.role === "PROVIDER" && (
-                    <span
-                      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
-                        form.verified
-                          ? "bg-green-100 text-green-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      <BadgeCheck className="w-3 h-3" />
-
-                      {form.verified
-                        ? "Verified Provider"
-                        : "Verification Pending"}
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-xs text-muted-foreground mt-1">
-                  Images are automatically
-                  compressed before upload
-                </p>
+              <div className="flex-1">
+                <label className="inline-flex items-center gap-2 cursor-pointer bg-muted hover:bg-muted/70 text-foreground text-sm font-medium px-4 py-2 rounded-xl transition-colors border border-border">
+                  <Camera className="w-4 h-4" /> {uploadingPhoto ? "Uploading…" : "Change Photo"}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+                    onChange={handlePhotoChange} disabled={uploadingPhoto} />
+                </label>
+                <p className="text-xs text-muted-foreground mt-2">JPEG, PNG, or WebP · Max {MAX_PHOTO_KB} KB</p>
+                {photoError && <p className="text-xs text-red-600 mt-1">{photoError}</p>}
               </div>
             </div>
           </div>
 
-          {/* Personal Information */}
-          <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
-
-            <h2 className="font-semibold text-foreground mb-5">
-              Personal Information
+          {/* Personal Details */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm p-6 mb-6">
+            <h2 className="text-sm font-semibold text-foreground mb-5 flex items-center gap-2">
+              <User className="w-4 h-4 text-primary" /> Personal Details
             </h2>
-
-            <form
-              onSubmit={handleSave}
-              className="flex flex-col gap-4"
-            >
-
-              {saved && (
-                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-
-                  <CheckCircle className="w-4 h-4" />
-
-                  Profile updated successfully!
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                <div className="flex flex-col gap-1.5">
-
-                  <label className="text-sm font-medium text-foreground">
-                    Full Name
-                  </label>
-
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={set("name")}
-                    className="border border-input rounded-xl px-3 py-2.5 text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-
-                  <label className="text-sm font-medium text-foreground">
-                    Phone Number
-                  </label>
-
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={set("phone")}
-                    placeholder="+91 9876543210"
-                    className="border border-input rounded-xl px-3 py-2.5 text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-sm font-medium text-foreground">
-                  Email
-                </label>
-
+            <div className="grid grid-cols-1 gap-5">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Full Name</label>
                 <input
-                  type="email"
-                  value={form.email}
-                  onChange={set("email")}
-                  className="border border-input rounded-xl px-3 py-2.5 text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full text-sm border border-input rounded-xl px-4 py-2.5 bg-background outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="Your name"
                 />
               </div>
-
-              <div className="flex flex-col gap-1.5">
-
-                <label className="text-sm font-medium text-foreground">
-                  Address
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+                <div className="flex items-center gap-2">
+                  <input value={profile?.email ?? ""} disabled
+                    className="flex-1 text-sm border border-input rounded-xl px-4 py-2.5 bg-muted text-muted-foreground cursor-not-allowed" />
+                  {profile?.emailVerified && (
+                    <BadgeCheck className="w-5 h-5 text-green-500 shrink-0" />
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5" /> Phone Number
+                  {profile?.phoneVerified
+                    ? <span className="text-xs text-green-600 font-medium">✓ Verified</span>
+                    : <button onClick={() => setPhoneModalOpen(true)} className="text-xs text-primary underline hover:no-underline">Verify now</button>
+                  }
                 </label>
-
+                <input value={profile?.phone ?? ""} disabled
+                  className="w-full text-sm border border-input rounded-xl px-4 py-2.5 bg-muted text-muted-foreground cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5" /> Address
+                </label>
                 <input
-                  type="text"
                   value={form.address}
-                  onChange={set("address")}
+                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                  className="w-full text-sm border border-input rounded-xl px-4 py-2.5 bg-background outline-none focus:ring-2 focus:ring-ring"
                   placeholder="Your address"
-                  className="border border-input rounded-xl px-3 py-2.5 text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-
-              <div className="flex gap-3 mt-2">
-
-                <button
-                  type="submit"
-                  className="bg-primary text-primary-foreground text-sm font-medium px-6 py-2.5 rounded-xl hover:opacity-90 transition-opacity"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Shop Information */}
-          {user?.role === "PROVIDER" && (
-            <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
-
-              <h2 className="font-semibold text-foreground mb-5">
-                Shop / Business Information
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                <div className="flex flex-col gap-1.5">
-
-                  <label className="text-sm font-medium text-foreground">
-                    Shop Name
-                  </label>
-
-                  <input
-                    type="text"
-                    value={form.shopName}
-                    onChange={set("shopName")}
-                    placeholder="ABC Electrical Works"
-                    className="border border-input rounded-xl px-3 py-2.5 text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-
-                  <label className="text-sm font-medium text-foreground">
-                    Work Experience (Years)
-                  </label>
-
-                  <input
-                    type="number"
-                    value={form.workExperience}
-                    onChange={set("workExperience")}
-                    placeholder="5"
-                    className="border border-input rounded-xl px-3 py-2.5 text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5 mt-4">
-
-                <label className="text-sm font-medium text-foreground">
-                  Shop Address
-                </label>
-
-                <input
-                  type="text"
-                  value={form.shopAddress}
-                  onChange={set("shopAddress")}
-                  placeholder="Shop address"
-                  className="border border-input rounded-xl px-3 py-2.5 text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
             </div>
-          )}
-
-          {/* Documents */}
-          {user?.role === "PROVIDER" && (
-            <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
-
-              <h2 className="font-semibold text-foreground mb-5">
-                Verification Documents
-              </h2>
-
-              <div className="flex flex-col gap-5">
-
-                {/* Aadhaar */}
-                <div className="flex flex-col gap-2">
-
-                  <label className="text-sm font-medium text-foreground">
-                    Aadhaar Card
-                  </label>
-
-                  <label className="border border-dashed border-border rounded-xl p-4 cursor-pointer hover:bg-muted transition-colors">
-
-                    <div className="flex items-center gap-3">
-
-                      <Upload className="w-5 h-5 text-muted-foreground" />
-
-                      <div>
-
-                        <p className="text-sm font-medium">
-                          Upload Aadhaar Card
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                          Auto compressed before upload
-                        </p>
-                      </div>
-                    </div>
-
-                    <input
-                      type="file"
-                      className="hidden"
-                      onChange={handleFileChange(
-                        "aadhaar"
-                      )}
-                    />
-                  </label>
-
-                  {documents.aadhaar && (
-                    <div className="flex items-center gap-2 text-sm text-green-700">
-
-                      <FileText className="w-4 h-4" />
-
-                      {documents.aadhaar.name}
-                    </div>
-                  )}
-                </div>
-
-                {/* Marksheet */}
-                <div className="flex flex-col gap-2">
-
-                  <label className="text-sm font-medium text-foreground">
-                    Marksheet / Qualification Certificate
-                  </label>
-
-                  <label className="border border-dashed border-border rounded-xl p-4 cursor-pointer hover:bg-muted transition-colors">
-
-                    <div className="flex items-center gap-3">
-
-                      <Upload className="w-5 h-5 text-muted-foreground" />
-
-                      <div>
-
-                        <p className="text-sm font-medium">
-                          Upload Marksheet
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                          Auto compressed before upload
-                        </p>
-                      </div>
-                    </div>
-
-                    <input
-                      type="file"
-                      className="hidden"
-                      onChange={handleFileChange(
-                        "marksheet"
-                      )}
-                    />
-                  </label>
-
-                  {documents.marksheet && (
-                    <div className="flex items-center gap-2 text-sm text-green-700">
-
-                      <FileText className="w-4 h-4" />
-
-                      {documents.marksheet.name}
-                    </div>
-                  )}
-                </div>
-
-                {/* Experience Certificate */}
-                <div className="flex flex-col gap-2">
-
-                  <label className="text-sm font-medium text-foreground">
-                    Experience Certificate
-                  </label>
-
-                  <label className="border border-dashed border-border rounded-xl p-4 cursor-pointer hover:bg-muted transition-colors">
-
-                    <div className="flex items-center gap-3">
-
-                      <Upload className="w-5 h-5 text-muted-foreground" />
-
-                      <div>
-
-                        <p className="text-sm font-medium">
-                          Upload Experience Certificate
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                          Auto compressed before upload
-                        </p>
-                      </div>
-                    </div>
-
-                    <input
-                      type="file"
-                      className="hidden"
-                      onChange={handleFileChange(
-                        "experienceCertificate"
-                      )}
-                    />
-                  </label>
-
-                  {documents.experienceCertificate && (
-                    <div className="flex items-center gap-2 text-sm text-green-700">
-
-                      <FileText className="w-4 h-4" />
-
-                      {
-                        documents
-                          .experienceCertificate
-                          .name
-                      }
-                    </div>
-                  )}
-                </div>
-
-                <button className="bg-primary text-primary-foreground text-sm font-medium px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity">
-                  Submit Documents
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Security */}
-          <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
-
-            <h2 className="font-semibold text-foreground mb-5">
-              Security
-            </h2>
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-sm font-medium text-foreground">
-                  Password
-                </p>
-
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Keep your account secure
-                </p>
-              </div>
-
-              <button
-                onClick={() =>
-                  setPasswordModalOpen(true)
-                }
-                className="flex items-center gap-2 border border-border text-sm font-medium px-4 py-2 rounded-xl hover:bg-muted transition-colors"
-              >
-                <Lock className="w-4 h-4" />
-                Change Password
-              </button>
-            </div>
           </div>
+
+          {/* Save */}
+          <button onClick={handleSave} disabled={saving}
+            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground text-sm font-medium py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><Save className="w-4 h-4" /> Save Changes</>}
+          </button>
+
+          {role === "provider" && (
+            <p className="text-center text-xs text-muted-foreground mt-4">
+              To upload verification documents, go to{" "}
+              <a href="/provider/documents" className="text-primary underline">My Documents</a>.
+            </p>
+          )}
         </div>
       </main>
+      {/* {phoneModalOpen && (
+        <PhoneVerificationModal
+          onClose={() => setPhoneModalOpen(false)}
+          onVerified={() => {
+            setPhoneModalOpen(false);
+            setProfile((p) => p ? { ...p, phoneVerified: true } : p);
+          }}
+        />
+      )} */}
     </div>
   );
 }

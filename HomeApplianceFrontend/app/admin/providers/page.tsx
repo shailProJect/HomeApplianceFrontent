@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/sidebar";
 import { adminApi, ProviderResponse } from "@/lib/api";
-import { BadgeCheck, Loader2, AlertCircle, RefreshCw, Search } from "lucide-react";
+import { BadgeCheck, Loader2, AlertCircle, RefreshCw, Search, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AdminProvidersPage() {
+  const router = useRouter();
   const [providers, setProviders] = useState<ProviderResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -183,20 +185,28 @@ export default function AdminProvidersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        {!p.verified && (
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => approveProvider(p.id)}
-                            disabled={approving === p.id}
-                            className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-300 px-3 py-1.5 rounded-lg hover:bg-green-100 font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            onClick={() => router.push(`/admin/providers/${p.id}`)}
+                            className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg hover:bg-primary/20 font-medium transition-colors"
                           >
-                            {approving === p.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <BadgeCheck className="w-3 h-3" />
-                            )}
-                            {approving === p.id ? "Approving…" : "Approve"}
+                            <Eye className="w-3 h-3" /> View Details
                           </button>
-                        )}
+                          {!p.verified && (
+                            <button
+                              onClick={() => approveProvider(p.id)}
+                              disabled={approving === p.id}
+                              className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-300 px-3 py-1.5 rounded-lg hover:bg-green-100 font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {approving === p.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <BadgeCheck className="w-3 h-3" />
+                              )}
+                              {approving === p.id ? "Approving…" : "Quick Approve"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

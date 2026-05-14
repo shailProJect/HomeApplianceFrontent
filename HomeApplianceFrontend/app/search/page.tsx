@@ -546,7 +546,7 @@ function ServiceCard({ service }: { service: ProviderServiceResponse }) {
           {service.categoryName.replace(/_/g, " ")}
         </span>
         <h3 className="font-semibold text-foreground mt-2 text-sm">
-          {service.description || service.categoryName.replace(/_/g, " ")}
+          {service.serviceName || service.categoryName.replace(/_/g, " ")}
         </h3>
         <p className="text-xs text-muted-foreground mt-1">by {service.providerName}</p>
       </div>
@@ -555,12 +555,20 @@ function ServiceCard({ service }: { service: ProviderServiceResponse }) {
           <span className="font-bold text-foreground">₹{service.price}</span>
           <span className="text-xs text-muted-foreground">{service.durationMinutes} min</span>
         </div>
-        <Link
-          href={`/booking?providerId=${service.providerId}&category=${service.categoryName}`}
-          className="bg-primary text-primary-foreground text-xs font-medium px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
-        >
-          Book Now
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href={`/provider/${service.providerId}`}
+            className="border border-border text-foreground text-xs font-medium px-3 py-2 rounded-xl hover:bg-muted transition-colors"
+          >
+            Profile
+          </Link>
+          <Link
+            href={`/booking?providerId=${service.providerId}&service=${service.id}&category=${service.categoryName}`}
+            className="bg-primary text-primary-foreground text-xs font-medium px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
+          >
+            Book Now
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -574,15 +582,25 @@ function NearbyCard({ provider }: { provider: ProviderResponse }) {
           {provider.name.slice(0, 2).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <p className="font-semibold text-foreground text-sm truncate">{provider.name}</p>
-            {provider.verified && <BadgeCheck className="w-3.5 h-3.5 text-primary shrink-0" />}
+            {provider.verified && (
+              <>
+                <BadgeCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-xs text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded-full">Verified</span>
+              </>
+            )}
           </div>
           {provider.serviceArea && (
             <div className="flex items-center gap-1 mt-0.5">
               <MapPin className="w-3 h-3 text-muted-foreground" />
               <span className="text-xs text-muted-foreground truncate">{provider.serviceArea}</span>
             </div>
+          )}
+          {(provider as ProviderResponse & { shopName?: string }).shopName && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              🏪 {(provider as ProviderResponse & { shopName?: string }).shopName}
+            </p>
           )}
         </div>
       </div>
@@ -596,12 +614,20 @@ function NearbyCard({ provider }: { provider: ProviderResponse }) {
             <span className="text-xs text-muted-foreground">({provider.totalReviews})</span>
           )}
         </div>
-        <Link
-          href={`/booking?providerId=${provider.id}`}
-          className="bg-primary text-primary-foreground text-xs font-medium px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
-        >
-          Book Now
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href={`/provider/${provider.id}`}
+            className="border border-border text-foreground text-xs font-medium px-3 py-2 rounded-xl hover:bg-muted transition-colors"
+          >
+            Profile
+          </Link>
+          <Link
+            href={`/booking?providerId=${provider.id}`}
+            className="bg-primary text-primary-foreground text-xs font-medium px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
+          >
+            Book Now
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 // lib/api.ts — Central API client for Home Services Backend
 // Backend runs at http://localhost:8080
 
-//  const BASE_URL =  "http://localhost:8080";
-  const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
+  const BASE_URL =  "http://localhost:8080";
+  // const BASE_URL = "https://home-services-backend-production-a84f.up.railway.app";
 
 // ─── Token helpers ──────────────────────────────────────────────────────────
 export function getToken(): string | null {
@@ -45,6 +45,7 @@ export interface StoredUser {
   emailVerified?: boolean;
   phone?: string;
   address?: string;
+  profilePhoto?: string;
 }
 
 // ─── Core fetch wrapper ───────────────────────────────────────────────────────
@@ -126,6 +127,9 @@ export interface UserResponse {
   phone: string;
   role: string;
   address?: string;
+  profilePhoto?: string;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
 }
 
 export interface BookingResponse {
@@ -156,7 +160,44 @@ export interface ProviderResponse {
   rating?: number;
   totalReviews?: number;
   categoryId: string;
-categoryName: string;
+  categoryName: string;
+  shopName?: string;
+  shopAddress?: string;
+  experienceYears?: number;
+}
+
+/** Full provider detail returned by GET /admin/providers/{id} */
+export interface ProviderDetailResponse {
+  providerId: string;
+  userId: string;
+  // user info
+  name: string;
+  email: string;
+  phone: string;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  registeredAt: string;
+  userAddress?: string;
+  // professional
+  categoryId?: string;
+  categoryName?: string;
+  experienceYears?: number;
+  rating?: number;
+  // shop / location
+  shopName?: string;
+  shopAddress?: string;
+  serviceArea?: string;
+  latitude?: number;
+  longitude?: number;
+  // documents
+  govtIdDocumentUrl?: string;
+  businessCertificateUrl?: string;
+  addressProofUrl?: string;
+  // status
+  profilePhotoUrl?: string;
+  verified: boolean;
+  active: boolean;
+  adminNotes?: string;
 }
 
 export interface ProviderServiceResponse {
@@ -267,6 +308,27 @@ export const authApi = {
       body: JSON.stringify({ email }),
     }
   ),
+
+  /** POST /auth/forgot-password — Send reset OTP to email */
+  forgotPassword: (email: string) =>
+    request<ApiResponse<string>>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  /** POST /auth/reset-password — Verify OTP and set new password */
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    request<ApiResponse<string>>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, otp, newPassword }),
+    }),
+
+  /** POST /auth/login-phone — Login using Firebase Phone Auth ID token */
+  loginWithPhone: (firebaseToken: string) =>
+    request<ApiResponse<AuthResponse>>("/auth/login-phone", {
+      method: "POST",
+      body: JSON.stringify({ firebaseToken }),
+    }),
 };
 
 export const categoryApi = {
@@ -288,19 +350,54 @@ export const userApi = {
       body: JSON.stringify(body),
     }),
 
-  /** POST /user/phone/send-otp — Send OTP to phone */
-  sendPhoneOtp: (phone: string) =>
-    request<ApiResponse<string>>("/user/phone/send-otp", {
-      method: "POST",
-      body: JSON.stringify({ phone }),
-    }),
+    uploadProfilePhoto: async (file: File) => {
 
-  /** POST /user/phone/verify — Verify phone OTP */
-  verifyPhone: (phone: string, otp: string) =>
-    request<ApiResponse<UserResponse>>("/user/phone/verify", {
-      method: "POST",
-      body: JSON.stringify({ phone, otp }),
-    }),
+  const token = getToken();
+
+  const formData = new FormData();
+
+  formData.append("profilePhoto", file);
+
+  const res = await fetch(
+    `${BASE_URL}/user/profile/photo`,
+    {
+      method: "PUT",
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {},
+      body: formData,
+    }
+  );
+
+  if (!res.ok) {
+
+    const err = await res
+      .json()
+      .catch(() => ({}));
+
+    throw new Error(
+      err?.message || "Upload failed"
+    );
+  }
+
+  return res.json();
+},
+
+  /** POST /user/phone/send-otp — Send OTP to phone */
+  // sendPhoneOtp: (phone: string) =>
+  //   request<ApiResponse<string>>("/user/phone/send-otp", {
+  //     method: "POST",
+  //     body: JSON.stringify({ phone }),
+  //   }),
+
+  // /** POST /user/phone/verify — Verify phone OTP */
+  // verifyPhone: (phone: string, otp: string) =>
+  //   request<ApiResponse<UserResponse>>("/user/phone/verify", {
+  //     method: "POST",
+  //     body: JSON.stringify({ phone, otp }),
+  //   }),
 
   /** GET /user/providers?category=ELECTRICIAN — Search active provider services by category */
   searchByCategory: (category: string) =>
@@ -332,6 +429,18 @@ export const userApi = {
       body: JSON.stringify(body),
     }),
 
+  /** GET /user/providers/{id} — Get a specific provider's public profile */
+  getProviderById: (id: string) =>
+    request<ApiResponse<ProviderResponse>>(`/user/providers/${id}`),
+
+  /** GET /user/providers/{id}/reviews — Get all reviews for a provider */
+  getProviderReviews: (id: string) =>
+    request<ApiResponse<ReviewResponse[]>>(`/user/providers/${id}/reviews`),
+
+  /** GET /user/reviews/me — Get current user's submitted reviews */
+  getMyReviews: () =>
+    request<ApiResponse<ReviewResponse[]>>("/user/reviews/me"),
+
 getChatResponse: (message: string) =>
   request<{
     category: string;
@@ -348,6 +457,17 @@ getChatResponse: (message: string) =>
       message,
     }),
   }),
+
+  verifyFirebasePhone: (firebaseToken: string) =>
+  request<ApiResponse<string>>(
+    "/user/phone/firebase-verify",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        firebaseToken,
+      }),
+    }
+  ),
 };
 
 // ─── Provider API (/provider) — Requires PROVIDER role ───────────────────────
@@ -391,11 +511,49 @@ export const providerApi = {
       body: JSON.stringify({ status }),
     }),
 
+  /** PUT /provider/profile — Update provider profile (shop name, address, etc.) */
+  updateProfile: (body: {
+    serviceArea?: string;
+    experienceYears?: number;
+    latitude?: number;
+    longitude?: number;
+    shopName?: string;
+    shopAddress?: string;
+  }) =>
+    request<ApiResponse<ProviderResponse>>("/provider/profile", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
     updateService: (id: string, body: ProviderServiceRequest) =>
     request<ApiResponse<ProviderServiceResponse>>(`/provider/services/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+
+  /** POST /provider/documents — Upload verification documents (multipart) */
+  uploadDocuments: (files: {
+    govtId?: File;
+    businessCertificate?: File;
+    addressProof?: File;
+  }) => {
+    const token = getToken();
+    const form = new FormData();
+    if (files.govtId) form.append("govtId", files.govtId);
+    if (files.businessCertificate) form.append("businessCertificate", files.businessCertificate);
+    if (files.addressProof) form.append("addressProof", files.addressProof);
+    return fetch(`${BASE_URL}/provider/documents`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(err?.message || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<ApiResponse<ProviderDetailResponse>>;
+    });
+  },
 };
 
 // ─── Admin API (/admin) — Requires ADMIN role ─────────────────────────────────
@@ -404,10 +562,21 @@ export const adminApi = {
   getAllProviders: () =>
     request<ApiResponse<ProviderResponse[]>>("/admin/providers"),
 
+  /** GET /admin/providers/{id} — Full provider detail for review */
+  getProviderDetail: (id: string) =>
+    request<ApiResponse<ProviderDetailResponse>>(`/admin/providers/${id}`),
+
   /** PUT /admin/providers/{id}/approve — Verify and approve a provider */
   approveProvider: (id: string) =>
-    request<ApiResponse<ProviderResponse>>(`/admin/providers/${id}/approve`, {
+    request<ApiResponse<ProviderDetailResponse>>(`/admin/providers/${id}/approve`, {
       method: "PUT",
+    }),
+
+  /** PUT /admin/providers/{id}/reject — Reject provider with optional note */
+  rejectProvider: (id: string, notes?: string) =>
+    request<ApiResponse<ProviderDetailResponse>>(`/admin/providers/${id}/reject`, {
+      method: "PUT",
+      body: JSON.stringify({ notes }),
     }),
 
   /** PUT /admin/providers/{id}/toggle-active — Enable/disable a provider */
@@ -416,6 +585,18 @@ export const adminApi = {
       method: "PUT",
     }),
 
+  /** GET /admin/reviews -- All reviews */
+  getAllReviews: () =>
+    request<ApiResponse<ReviewResponse[]>>("/admin/reviews"),
+
+  /** GET /admin/providers/{id}/reviews */
+  getProviderReviews: (providerId: string) =>
+    request<ApiResponse<ReviewResponse[]>>(`/admin/providers/${providerId}/reviews`),
+
+  /** DELETE /admin/reviews/{id} */
+  deleteReview: (id: string) =>
+    request<ApiResponse<void>>(`/admin/reviews/${id}`, { method: "DELETE" }),
+
   /** GET /admin/users — List all registered users */
   getAllUsers: () =>
     request<ApiResponse<UserResponse[]>>("/admin/users"),
@@ -423,5 +604,4 @@ export const adminApi = {
   /** GET /admin/bookings — Monitor all bookings platform-wide */
   getAllBookings: () =>
     request<ApiResponse<BookingResponse[]>>("/admin/bookings"),
-
 };
