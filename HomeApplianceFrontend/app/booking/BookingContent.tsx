@@ -47,24 +47,69 @@ export default function BookingPage() {
   };
 
   const handleConfirm = async () => {
-    if (!selectedService) return;
-    setConfirming(true);
-    setError("");
-    try {
-      const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
-      await userApi.createBooking({
-        providerServiceId: selectedService.id,
-        scheduledAt,
-        address,
-        notes: notes || undefined,
-      });
-      setConfirmed(true);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Booking failed. Please try again.");
-    } finally {
-      setConfirming(false);
-    }
-  };
+  if (!selectedService) return;
+
+  setConfirming(true);
+  setError("");
+
+  try {
+    const startTime = `${time}:00`;
+
+    // Calculate end time
+    const [hours, minutes] = time.split(":").map(Number);
+
+    const endDate = new Date();
+    endDate.setHours(hours);
+    endDate.setMinutes(minutes + selectedService.durationMinutes);
+
+    const endHours = String(endDate.getHours()).padStart(2, "0");
+    const endMinutes = String(endDate.getMinutes()).padStart(2, "0");
+
+    const endTime = `${endHours}:${endMinutes}:00`;
+
+    await userApi.createBooking({
+      providerServiceId: selectedService.id,
+      bookingDate: date,
+      startTime,
+      endTime,
+      address,
+      notes: notes || undefined,
+    });
+
+    const response = await userApi.createBooking({
+  providerServiceId: selectedService.id,
+  bookingDate: date,
+  startTime,
+  endTime,
+  address,
+  notes,
+});
+
+const providerPhone = 9284389802;
+
+const message =
+  `New Booking Request%0A%0A` +
+  `Service: ${selectedService.serviceName}%0A` +
+  `Date: ${date}%0A` +
+  `Time: ${time}%0A` +
+  `Address: ${address}`;
+
+window.open(
+  `https://wa.me/${providerPhone}?text=${message}`,
+  "_blank"
+);
+
+    setConfirmed(true);
+  } catch (e: unknown) {
+    setError(
+      e instanceof Error
+        ? e.message
+        : "Booking failed. Please try again."
+    );
+  } finally {
+    setConfirming(false);
+  }
+};
 
   if (confirmed) {
     return (

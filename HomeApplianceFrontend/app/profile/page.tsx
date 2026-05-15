@@ -187,7 +187,7 @@ export default function ProfilePage() {
                   <input value={profile?.email ?? ""} disabled
                     className="flex-1 text-sm border border-input rounded-xl px-4 py-2.5 bg-muted text-muted-foreground cursor-not-allowed" />
                   {profile?.emailVerified && (
-                    <BadgeCheck className="w-5 h-5 text-green-500 shrink-0" />
+                    <BadgeCheck className="w-5 h-5 text-green-500 shrink-0" title="Email verified" />
                   )}
                 </div>
               </div>
@@ -230,7 +230,7 @@ export default function ProfilePage() {
           )}
         </div>
       </main>
-      {/* {phoneModalOpen && (
+      {phoneModalOpen && (
         <PhoneVerificationModal
           onClose={() => setPhoneModalOpen(false)}
           onVerified={() => {
@@ -238,7 +238,7 @@ export default function ProfilePage() {
             setProfile((p) => p ? { ...p, phoneVerified: true } : p);
           }}
         />
-      )} */}
+      )}
     </div>
   );
 }

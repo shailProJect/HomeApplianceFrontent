@@ -239,9 +239,11 @@ export interface RegisterRequest {
 
 export interface BookingRequest {
   providerServiceId: string;
-  scheduledAt: string;
+  startTime: string;
   address: string;
   notes?: string;
+  endTime?: string;
+  bookingDate?: string;
 }
 
 export interface ReviewRequest {
@@ -308,20 +310,6 @@ export const authApi = {
       body: JSON.stringify({ email }),
     }
   ),
-
-  /** POST /auth/forgot-password — Send reset OTP to email */
-  forgotPassword: (email: string) =>
-    request<ApiResponse<string>>("/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
-
-  /** POST /auth/reset-password — Verify OTP and set new password */
-  resetPassword: (email: string, otp: string, newPassword: string) =>
-    request<ApiResponse<string>>("/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({ email, otp, newPassword }),
-    }),
 
   /** POST /auth/login-phone — Login using Firebase Phone Auth ID token */
   loginWithPhone: (firebaseToken: string) =>
@@ -436,10 +424,6 @@ export const userApi = {
   /** GET /user/providers/{id}/reviews — Get all reviews for a provider */
   getProviderReviews: (id: string) =>
     request<ApiResponse<ReviewResponse[]>>(`/user/providers/${id}/reviews`),
-
-  /** GET /user/reviews/me — Get current user's submitted reviews */
-  getMyReviews: () =>
-    request<ApiResponse<ReviewResponse[]>>("/user/reviews/me"),
 
 getChatResponse: (message: string) =>
   request<{
