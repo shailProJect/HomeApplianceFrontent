@@ -81,7 +81,7 @@ export default function ProfilePage() {
       const formData = new FormData();
       const blob = new Blob([JSON.stringify({ name: form.name, address: form.address })], { type: "application/json" });
       formData.append("data", blob);
-      const res = await fetch("http://localhost:8080/user/profile", {
+      const res = await fetch("https://home-services-backend-production-a84f.up.railway.app/user/profile", {
         method: "PUT",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
